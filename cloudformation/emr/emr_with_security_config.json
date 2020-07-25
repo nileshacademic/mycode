@@ -1,0 +1,539 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Nilesh EMR",
+    "Parameters": {
+        "Name": {
+            "Description": "Name of EMR",
+            "Type": "String",
+			"Default": "Nilesh"
+        },
+        "KeyName": {
+            "Description": "Name of an existing EC2 KeyPair to enable SSH to the instances",
+            "Type": "String",
+            "Default": "devenv-virginia"
+        },
+        "TaskInstanceType": {
+            "Type": "String",
+            "Description": "Valid Instance Type for Task",
+            "Default": "m5.xlarge"
+        },
+        "MasterInstanceType": {
+            "Type": "String",
+            "Description": "Valid Instance Type for Master",
+            "Default": "m5.xlarge"
+        },
+        "CoreInstanceType": {
+            "Type": "String",
+            "Description": "Valid Instance Type for Master",
+            "Default": "m5.xlarge"
+        },
+        "CoreInstanceSpotPrice": {
+            "Type": "Number",
+            "Default": "0",
+            "Description": "Spot price (or use 0 for 'on demand' instance)"
+        },
+        "TaskInstanceSpotPrice": {
+            "Type": "Number",
+            "Default": "0",
+            "Description": "Spot price (or use 0 for 'on demand' instance)"
+        },
+        "S3LogBucket": {
+            "Type": "String",
+            "Description": "S3 Bucket Prefix for sogs for EMR Cluster. e.g s3://bucket_name/logs/<ClusterType",
+            "Default": "s3://aws-logs-xxx-us-east-1/elasticmapreduce/"
+        },
+        "KMSKey": {
+            "Type": "String",
+            "Description": "KMS Key to be using for encryption. It can either be complete Key ARN or key Alias starting with alias/",
+            "Default": "arn:aws:kms:us-east-1:xxx:alias/EMR"
+        },
+        "MasterVolumeSize": {
+            "Type": "Number",
+            "Description": "Local disk size for every Master Instance in GB e.g. 100 or 300",
+            "Default": 100
+        },
+        "MasterVolumeCount": {
+            "Type": "Number",
+            "Description": "Number of Local disks e.g. 1,2, 4 etc",
+            "Default": 1
+        },
+        "CoreInstanceCount": {
+            "Type": "Number",
+            "Description": "Total number of Core instances e.g. 2 or 4 or 7 etc",
+            "Default": 1
+        },
+        "CoreVolumeSize": {
+            "Type": "Number",
+            "Description": "Local disk size for every Core Instance in GB e.g. 100 or 300",
+            "Default": 100
+        },
+        "CoreVolumeCount": {
+            "Type": "Number",
+            "Description": "Number of Local disks e.g. 1,2, 4 etc",
+            "Default": 1
+        },
+        "TaskVolumeCount": {
+            "Type": "Number",
+            "Description": "Number of Local disks e.g. 1,2, 4 etc",
+            "Default": 1
+        },
+        "TaskVolumeSize": {
+            "Type": "Number",
+            "Description": "Local disk size for every Task Instance in GB e.g. 100 or 300",
+            "Default": 100
+        },
+        "TaskInstanceCount": {
+            "Type": "Number",
+            "Description": "Total number of Task instances e.g. 2 or 4 or 7 etc",
+            "Default": 1
+        },
+        "EMRReleaseVersion": {
+            "Type": "String",
+            "Description": "EMR Release to be used",
+            "Default": "emr-5.30.0"
+        },
+        "EMRSecurityConfiguration": {
+            "Type": "String",
+            "Description": "Name of the Security Configurtaion for the EMR Cluster. If you want CFN to create the Group do not specifc any value. Value NONE means Security Configuration would not be used",
+            "Default": ""
+        },
+        "Subnet": {
+            "Type": "AWS::EC2::Subnet::Id",
+            "Description": "Subnetid where Instances to be created"
+        },
+        "EmrManagedCoreSecurityGroup": {
+            "Type": "String",
+            "Description": "Core Security Group for EMR. "
+        },
+        "EmrManagedMasterSecurityGroup": {
+            "Type": "String",
+            "Description": "Master Security Group for EMR. "
+        },
+        "ServiceAccessSecurityGroup": {
+            "Type": "String",
+            "Description": "Service Security Group for EMR. "
+        },
+        "EMRInstanceProfile": {
+            "Type": "String",
+            "Description": "Instance Role for JobRole",
+			"Default": "EMR_EC2_DefaultRole"
+        },
+        "EMRRole": {
+            "Type": "String",
+            "Description": "ServiceRole for EMR",
+			"Default": "EMR_DefaultRole"
+        },
+        "AutoScalingRole": {
+            "Type": "String",
+            "Description": "ServiceRole for EMR",
+			"Default": "EMR_AutoScaling_DefaultRole"
+        },
+        "InTransitCertificate": {
+            "Type": "String",
+            "Description": "Certificate Location in S3",
+            "Default": "s3://xxx/emrssl/my-certs.zip"
+        },
+        "AdditionalMasterSecurityGroups": {
+            "Type": "CommaDelimitedList",
+            "Description": "List of comma seperate security groups",
+            "Default": ""
+        },
+        "AdditionalCoreSecurityGroups": {
+            "Type": "CommaDelimitedList",
+            "Description": "List of comma seperate security groups",
+            "Default": ""
+        },
+        "EmrBootstrapActionScriptLocation": {
+            "Type": "String",
+            "Description": "Location of EMRBootStrap script in S3",
+            "Default": ""
+        },
+        "ProxyServer": {
+            "Type": "String",
+            "Description": "Proxy Server Name",
+            "Default": ""
+        },
+        "ProxyServerPort": {
+            "Type": "Number",
+            "Description": "Proxy Server Port",
+            "Default": 80
+        },
+        "TerminationProtected": {
+            "Type": "String",
+            "Description": "Flag to specify if the EMR is termination Protected",
+            "Default": "false"
+        },
+        "EMRCustomAMI": {
+            "Type": "String",
+            "Description": "Custom AMI to use for EMR Creation"
+        },
+        "KmsKeyArn": {
+            "Type": "String",
+            "Description": "KMS Key ARN. the complete key arn (not even the Key Alias ARN)",
+			"Default": "arn:aws:kms:us-east-1:xxx:key/xxxxxx"
+        }
+    },
+    "Conditions": {
+        "UseOnDemandCoreInstance": {
+            "Fn::Equals": [
+                "0",
+                {
+                    "Ref": "CoreInstanceSpotPrice"
+                }
+            ]
+        },
+        "UseOnDemandTaskInstance": {
+            "Fn::Equals": [
+                "0",
+                {
+                    "Ref": "TaskInstanceSpotPrice"
+                }
+            ]
+        },
+        "HasKeyName": {
+            "Fn::Not": [
+                {
+                    "Fn::Equals": [
+                        "",
+                        {
+                            "Ref": "KeyName"
+                        }
+                    ]
+                }
+            ]
+        },
+        "UseCustomAMI": {
+            "Fn::Not": [
+                {
+                    "Fn::Equals": [
+                        "",
+                        {
+                            "Ref": "EMRCustomAMI"
+                        }
+                    ]
+                }
+            ]
+        },
+        "WithoutCustomAMI": {
+            "Fn::Equals": [
+                "",
+                {
+                    "Ref": "EMRCustomAMI"
+                }
+            ]
+        },
+        "UseEMRSecurityConfiguration": {
+            "Fn::Not": [
+                {
+                    "Fn::Equals": [
+                        {
+                            "Ref": "EMRSecurityConfiguration"
+                        },
+                        "NONE"
+                    ]
+                }
+            ]
+        },
+        "UseCustomEMRSecurityConfiguration": {
+            "Fn::Equals": [
+                {
+                    "Ref": "EMRSecurityConfiguration"
+                },
+                ""
+            ]
+        }
+    },
+    "Resources": {
+        "EMRCluster": {
+            "Type": "AWS::EMR::Cluster",
+            "Properties": {
+                "Name": {
+                    "Ref": "Name"
+                },
+                "ReleaseLabel": {
+                    "Ref": "EMRReleaseVersion"
+                },
+                "CustomAmiId": {
+                    "Fn::If": [
+                        "UseCustomAMI",
+                        {
+                            "Ref": "EMRCustomAMI"
+                        },
+                        {
+                            "Ref": "AWS::NoValue"
+                        }
+                    ]
+                },
+                "SecurityConfiguration": {
+                    "Fn::If": [
+                        "UseEMRSecurityConfiguration",
+                        {
+                            "Fn::If": [
+                                "UseCustomEMRSecurityConfiguration",
+                                {
+                                    "Ref": "EMRCustomSecurityConfiguration"
+                                },
+                                {
+                                    "Ref": "EMRSecurityConfiguration"
+                                }
+                            ]
+                        },
+                        {
+                            "Ref": "AWS::NoValue"
+                        }
+                    ]
+                },
+                "Applications": [
+                    {
+                        "Name": "Hadoop"
+                    },
+                    {
+                        "Name": "Spark"
+                    }
+                ],
+                "Configurations": [
+                    {
+                        "Classification": "emrfs-site",
+                        "ConfigurationProperties": {
+                            "fs.s3.enableServerSideEncryption": "true",
+                            "fs.s3.serverSideEncryption.kms.keyId": {
+                                "Ref": "KMSKey"
+                            }
+                        }
+                    }
+                ],
+                "Instances": {
+                    "CoreInstanceGroup": {
+                        "Name": "Core Instances",
+                        "InstanceCount": {
+                            "Ref": "CoreInstanceCount"
+                        },
+                        "InstanceType": {
+                            "Ref": "CoreInstanceType"
+                        },
+                        "Market": {
+                            "Fn::If": [
+                                "UseOnDemandCoreInstance",
+                                "ON_DEMAND",
+                                "SPOT"
+                            ]
+                        },
+                        "BidPrice": {
+                            "Fn::If": [
+                                "UseOnDemandCoreInstance",
+                                {
+                                    "Ref": "AWS::NoValue"
+                                },
+                                {
+                                    "Ref": "CoreInstanceSpotPrice"
+                                }
+                            ]
+                        }
+                    },
+                    "Ec2KeyName": {
+                        "Fn::If": [
+                            "HasKeyName",
+                            {
+                                "Ref": "KeyName"
+                            },
+                            {
+                                "Ref": "AWS::NoValue"
+                            }
+                        ]
+                    },
+                    "Ec2SubnetId": {
+                        "Ref": "Subnet"
+                    },
+                    "MasterInstanceGroup": {
+                        "Name": "Master Instance",
+                        "InstanceCount": "1",
+                        "InstanceType": {
+                            "Ref": "MasterInstanceType"
+                        },
+                        "Market": "ON_DEMAND"
+                    },
+                    "ServiceAccessSecurityGroup": {
+                        "Ref": "ServiceAccessSecurityGroup"
+                    },
+                    "EmrManagedMasterSecurityGroup": {
+                        "Ref": "EmrManagedMasterSecurityGroup"
+                    },
+                    "EmrManagedSlaveSecurityGroup": {
+                        "Ref": "EmrManagedCoreSecurityGroup"
+                    },
+                    "AdditionalMasterSecurityGroups": {
+                        "Ref": "AdditionalMasterSecurityGroups"
+                    },
+                    "AdditionalSlaveSecurityGroups": {
+                        "Ref": "AdditionalCoreSecurityGroups"
+                    },
+                    "TerminationProtected": {
+                        "Ref": "TerminationProtected"
+                    }
+                },
+                "JobFlowRole": {
+                    "Ref": "EMRInstanceProfile"
+                },
+                "AutoScalingRole": {
+                    "Ref": "AutoScalingRole"
+                },
+                "ServiceRole": {
+                    "Ref": "EMRRole"
+                },
+                "LogUri": {
+                    "Ref": "S3LogBucket"
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Nilesh EMR"
+                    }
+                ],
+                "VisibleToAllUsers": true
+            }
+        },
+        "TaskInstanceGroupConfig": {
+            "Type": "AWS::EMR::InstanceGroupConfig",
+            "Properties": {
+                "InstanceCount": {
+                    "Ref": "TaskInstanceCount"
+                },
+                "InstanceType": {
+                    "Ref": "TaskInstanceType"
+                },
+                "AutoScalingPolicy": {
+                    "Constraints": {
+                        "MinCapacity": 2,
+                        "MaxCapacity": 10
+                    },
+                    "Rules": [
+                        {
+                            "Name": "Scale-out-policy",
+                            "Description": "Replicates the scale-out rule in the console for YARN memory.",
+                            "Action": {
+                                "SimpleScalingPolicyConfiguration": {
+                                    "AdjustmentType": "CHANGE_IN_CAPACITY",
+                                    "ScalingAdjustment": 1,
+                                    "CoolDown": 300
+                                }
+                            },
+                            "Trigger": {
+                                "CloudWatchAlarmDefinition": {
+                                    "ComparisonOperator": "LESS_THAN",
+                                    "EvaluationPeriods": 1,
+                                    "MetricName": "YARNMemoryAvailablePercentage",
+                                    "Namespace": "AWS/ElasticMapReduce",
+                                    "Period": 300,
+                                    "Threshold": 15,
+                                    "Statistic": "AVERAGE",
+                                    "Unit": "PERCENT",
+                                    "Dimensions": [
+                                        {
+                                            "Key": "JobFlowId",
+                                            "Value": "${emr.clusterId}"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "Name": "Scale-in-policy",
+                            "Description": "Replicates the scale-in rule in the console for YARN memory.",
+                            "Action": {
+                                "SimpleScalingPolicyConfiguration": {
+                                    "AdjustmentType": "CHANGE_IN_CAPACITY",
+                                    "ScalingAdjustment": -1,
+                                    "CoolDown": 300
+                                }
+                            },
+                            "Trigger": {
+                                "CloudWatchAlarmDefinition": {
+                                    "ComparisonOperator": "LESS_THAN",
+                                    "EvaluationPeriods": 1,
+                                    "MetricName": "YARNMemoryAvailablePercentage",
+                                    "Namespace": "AWS/ElasticMapReduce",
+                                    "Period": 300,
+                                    "Threshold": 15,
+                                    "Statistic": "AVERAGE",
+                                    "Unit": "PERCENT",
+                                    "Dimensions": [
+                                        {
+                                            "Key": "JobFlowId",
+                                            "Value": "${emr.clusterId}"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    ]
+                },
+                "InstanceRole": "TASK",
+                "Market": {
+                    "Fn::If": [
+                        "UseOnDemandTaskInstance",
+                        "ON_DEMAND",
+                        "SPOT"
+                    ]
+                },
+                "BidPrice": {
+                    "Fn::If": [
+                        "UseOnDemandTaskInstance",
+                        {
+                            "Ref": "AWS::NoValue"
+                        },
+                        {
+                            "Ref": "TaskInstanceSpotPrice"
+                        }
+                    ]
+                },
+                "Name": "Additional Task Nodes",
+                "JobFlowId": {
+                    "Ref": "EMRCluster"
+                }
+            }
+        },
+        "EMRCustomSecurityConfiguration": {
+            "Type": "AWS::EMR::SecurityConfiguration",
+            "Condition": "UseCustomEMRSecurityConfiguration",
+            "Properties": {
+                "SecurityConfiguration": {
+                    "EncryptionConfiguration": {
+                        "EnableAtRestEncryption": true,
+                        "AtRestEncryptionConfiguration": {
+                            "LocalDiskEncryptionConfiguration": {
+                                "AwsKmsKey": {
+                                    "Ref": "KMSKey"
+                                },
+                                "EncryptionKeyProviderType": "AwsKms",
+								"EnableEbsEncryption" : true
+                            },
+                            "S3EncryptionConfiguration": {
+                                "AwsKmsKey": {
+                                    "Ref": "KMSKey"
+                                },
+                                "EncryptionMode": "SSE-KMS"
+                            }
+                        },
+                        "EnableInTransitEncryption": true,
+                        "InTransitEncryptionConfiguration": {
+                            "TLSCertificateConfiguration": {
+                                "CertificateProviderType": "PEM",
+                                "S3Object": {
+                                    "Ref": "InTransitCertificate"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "Outputs": {
+        "EMRClusterReference": {
+            "Description": "Reference of the EMR Cluster",
+            "Value": {
+                "Ref": "EMRCluster"
+            }
+        }
+    }
+}
