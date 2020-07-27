@@ -1,0 +1,1 @@
+nohup aws logs filter-log-events --log-group-name /aws-glue/crawlers --log-stream-names "sparkstructuredstreaming" --filter-pattern '"4badccdf-9ae0-424e-8ec7-280731fca6ba"' --region us-east-1 --output text > crawlerlog &
