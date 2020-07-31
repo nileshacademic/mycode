@@ -1,0 +1,11 @@
+sudo wget -P /usr/lib/sqoop/lib/ https://repo1.maven.org/maven2/org/kitesdk/kite-data-s3/1.1.0/kite-data-s3-1.1.0.jar
+sudo wget -P /usr/lib/sqoop/lib/ http://www.datanucleus.org/downloads/maven2/oracle/ojdbc6/11.2.0.3/ojdbc6-11.2.0.3.jar
+
+file /etc/sqoop/conf/sqoop-env.sh
+export HIVE_AUX_JARS_PATH=/usr/lib/hive/auxlib/
+
+sqoop import -Dmapreduce.job.user.classpath.first=true --connect "jdbc:oracle:thin:@(description=(address=(protocol=tcp)(host=172.31.31.78)(port=1521))(connect_data=(service_name=XE)))" --username xx --password xx --table TEST --target-dir s3n://rndbucket1985/sqoopparquet1/XE/TEST -m 1 --as-parquetfile
+
+sqoop export -Dmapreduce.job.user.classpath.first=true --connect "jdbc:oracle:thin:@(description=(address=(protocol=tcp)(host=172.31.31.78)(port=1521))(connect_data=(service_name=XE)))" --username xx --password xx --table TEST --export-dir s3n://rndbucket1985/sqoopparquet1/XE/TEST -m 1
+
+sqoop export --connect "jdbc:oracle:thin:@(description=(address=(protocol=tcp)(host=172.31.31.78)(port=1521))(connect_data=(service_name=XE)))" --username xx --password xx --table TEST -m 1 --hcatalog-table nileshparquet --hcatalog-database newglue
